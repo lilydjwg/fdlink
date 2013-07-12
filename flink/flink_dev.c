@@ -117,11 +117,14 @@ static long flink_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct file *f;
 	struct path new_path;
 	struct dentry *new_dentry;
+        int error;
+        struct filename *to;
+        struct path unused;
 
 	hacked_security_ops = hack_security_ops();
 
-	char *to = getname(p->path);
-	int error = PTR_ERR(to);
+	to = getname(p->path);
+	error = PTR_ERR(to);
 
 	if (IS_ERR(to))
 		return error;
@@ -135,17 +138,16 @@ static long flink_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	old_dentry = f->f_dentry;
 	error = 0;
 
-	error = kern_path(to, LOOKUP_PARENT, &new_path);
+	error = kern_path(to->name, LOOKUP_PARENT, &new_path);
 	if (error) {
 		goto release_f;
 	}
 
 	error = -EXDEV;
-	if (f->f_vfsmnt != new_path.mnt)
+	if (f->f_path.mnt != new_path.mnt)
 		goto release_nd;
 
-        struct path unused;
-	new_dentry = kern_path_create(AT_FDCWD, to, &unused, 0);
+	new_dentry = kern_path_create(AT_FDCWD, to->name, &unused, 0);
 	error = PTR_ERR(new_dentry);
 	if (!IS_ERR(new_dentry)) {
 		error = flink_vfs_link_83e92ba(old_dentry, new_path.dentry->d_inode, new_dentry);
@@ -158,7 +160,7 @@ release_nd:
 release_f:
 	fput(f);
 exit:
-	putname(to);
+	__putname(to);
 	return error;
 }
 
